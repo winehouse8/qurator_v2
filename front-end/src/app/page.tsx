@@ -8,10 +8,11 @@ export default function Home() {
         <Logo />
       </div>
       <div className="flex-1 w-full flex flex-col items-center justify-center gap-12 px-4">
-        <h1 className="text-[28px] font-semibold tracking-tighter text-center">
+        <h1 className="text-title font-semibold tracking-tighter text-center">
           오늘은 어떤 콘텐츠를 만들까요?
         </h1>
         <TopicInput />
+        <div className="h-[34px] w-full" /> 
       </div>
     </main>
   )

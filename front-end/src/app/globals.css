@@ -24,7 +24,8 @@ body {
 
 @layer components {
   .input-base {
-    @apply w-full px-6 py-3 bg-input-bg border rounded-[24px] text-base font-medium leading-normal tracking-[-0.02em] text-muted focus:outline-none focus:bg-background text-foreground transition-colors;
+    @apply w-full px-6 py-3 bg-input-bg border rounded-[24px] text-base font-medium leading-normal tracking-[-0.02em] text-muted focus:outline-none focus:bg-background text-foreground transition-colors
+    hover:bg-hover transition-colors;
   }
 
   .btn-small {
@@ -32,7 +33,7 @@ body {
   }
 
   .btn-icon {
-    @apply p-1 bg-input-bg rounded-full hover:bg-hover hover:text-background transition-colors;
+    @apply p-5 bg-input-bg rounded-full hover:bg-hover hover:text-background transition-colors;
   }
 
   .btn-submit {

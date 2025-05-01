@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Input } from './ui/input'
 import { Button } from './ui/button'
@@ -15,11 +16,14 @@ const RECOMMENDATIONS = [
 export function TopicInput() {
   const [topic, setTopic] = useState('')
   const [startIndex, setStartIndex] = useState(0)
+  const router = useRouter()
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle topic submission
-    console.log('Submitted topic:', topic)
+    console.log('Submited topic: ', topic);
+    if (topic.trim()) {
+      router.push(`/content?topic=${encodeURIComponent(topic.trim())}`)
+    }
   }
 
   const rotateRecommendations = () => {
@@ -52,23 +56,22 @@ export function TopicInput() {
           ))}
           <Button 
             variant="icon" 
-            // type="button" 
-            // aria-label="새로고침"
             onClick={rotateRecommendations}
+            className="p-[5px]"
           >
             <Image
               src="/assets/refresh-icon.svg"
               alt=""
-              width={28}
-              height={28}
+              width={18}
+              height={18}
             //   className="[&>path]:stroke-muted group-hover:[&>path]:stroke-background"
             />
           </Button>
         </div>
-        <Button variant="submit" type="submit" aria-label="제출" className="p-1 bg-foreground rounded-full">
+        <Button variant="submit" type="submit" aria-label="제출" className="p-2 bg-foreground rounded-full">
           <div className="w-6 h-6 relative">
             <Image
-              src="/assets/submit-arrow1.svg"
+              src="/assets/submit-icon.svg"
               alt=""
               fill
               className="object-contain [&>path]:stroke-background"

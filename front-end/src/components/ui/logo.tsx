@@ -1,8 +1,9 @@
 import Image from 'next/image'
+import Link from 'next/link'
 
 export function Logo() {
   return (
-    <div className="w-[24px] h-[24px] relative">
+    <Link href="/" className="w-[24px] h-[24px] relative block hover:opacity-80 transition-opacity">
       <Image
         src="/assets/logo.svg"
         alt="Qurator Logo"
@@ -10,6 +11,6 @@ export function Logo() {
         className="object-contain"
         priority
       />
-    </div>
+    </Link>
   )
 } 
