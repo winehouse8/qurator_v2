@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground: #222222;
+  --background: #FFFFFF;
+  --hover: #eee;
+  --muted: #888888;
+  --border: #DDDDDD;
+  --input-bg: #F7F7F7;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+}
+
+@layer components {
+  .input-base {
+    @apply w-full px-6 py-3 bg-input-bg border rounded-[24px] text-base font-medium leading-normal tracking-[-0.02em] text-muted focus:outline-none focus:bg-background text-foreground transition-colors;
+  }
+
+  .btn-small {
+    @apply px-1.5 py-1 bg-input-bg border rounded-lg text-sm font-medium leading-normal tracking-[-0.02em] text-muted hover:bg-hover hover:transition-colors;
+  }
+
+  .btn-icon {
+    @apply p-1 bg-input-bg rounded-full hover:bg-hover hover:text-background transition-colors;
+  }
+
+  .btn-submit {
+    @apply p-1 bg-foreground rounded-full text-background hover:opacity-90 transition-opacity;
+  }
+} 
