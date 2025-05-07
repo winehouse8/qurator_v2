@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Input } from './ui/input'
 import { Button } from './ui/button'
+import { mocking_function } from '../app/api/mock-api'
 
 const RECOMMENDATIONS = [
     '2025 FW 패션 트렌드',
@@ -21,6 +22,8 @@ export function TopicInput() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     console.log('Submited topic: ', topic);
+    const res = mocking_function();
+    console.log(res);
     if (topic.trim()) {
       router.push(`/content?topic=${encodeURIComponent(topic.trim())}`)
     }
@@ -36,7 +39,7 @@ export function TopicInput() {
   ]
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-[400px] space-y-3">
+    <form onSubmit={handleSubmit} className="w-full max-w-[450px] space-y-3">
       <Input
         value={topic}
         onChange={(e) => setTopic(e.target.value)}
@@ -58,6 +61,7 @@ export function TopicInput() {
             variant="icon" 
             onClick={rotateRecommendations}
             className="p-[5px]"
+            type="button"
           >
             <Image
               src="/assets/refresh-icon.svg"

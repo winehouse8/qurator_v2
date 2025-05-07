@@ -5,6 +5,7 @@ import { useRouter,useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
+import { mocking_function } from '../app/api/mock-api'
 
 export function TopicSearchBar() {
     const router = useRouter()
@@ -18,7 +19,11 @@ export function TopicSearchBar() {
   
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault()
+
       if (topic.trim()) {
+        // Call mocking_function when searching
+        const mockResult = mocking_function()
+        console.log('Mocking function result:', mockResult)
         router.push(`/content?topic=${encodeURIComponent(topic.trim())}`)
       }
     }
