@@ -8,7 +8,10 @@ interface EditorProps {
   card: {
     title?: string
     sub_title?: string
+    body?: string
     img_urls?: string[]
+    ref_urls?: string[]
+    img_desc?: string[]
     isNew?: boolean
   }
   onBack: () => void
@@ -122,10 +125,12 @@ export function Editor({
         </div>
 
         {/* Image Selection Panel */}
-        <div className="w-80 flex flex-col gap-6">
+        <div className="w-[400px] flex flex-col gap-6">
           <h3 className="text-lg font-semibold">검색한 이미지</h3>
           <ImageSelectionGrid
             imageUrls={imageUrls}
+            refUrls={card.ref_urls}
+            imgDescs={card.img_desc}
             selectedImageIndex={selectedImageIndex}
             onSelect={handleImageSelect}
           />

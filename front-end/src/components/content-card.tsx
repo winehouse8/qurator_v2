@@ -20,16 +20,16 @@ export const ContentCard = forwardRef<HTMLDivElement, ContentCardProps>(
     // Category-based style map
     const categoryStyles = {
       text: {
-        title: 'text-[84px] leading-1.5 font-semibold text-background break-keep',
+        title: 'text-[96px] leading-1.5 font-semibold text-background break-keep',
         sub_title: 'text-[64px] font-semibold text-background break-keep',
         body: 'text-[48px] leading-2 text-background break-keep mt-12',
       },
       news: {
-        title: 'text-[84px] leading-1.5 font-semibold text-background break-keep',
+        title: 'text-[96px] leading-1.5 font-semibold text-background break-keep',
         body: 'text-[48px] leading-2 text-background break-keep mt-12',
       },
       place: {
-        title: 'text-[84px] leading-1.5 font-semibold text-background break-keep',
+        title: 'text-[96px] leading-1.5 font-semibold text-background break-keep',
         sub_title: 'text-[64px] font-semibold text-background break-keep',
         body: 'text-[48px] leading-2 text-background break-keep mt-12',
       }
