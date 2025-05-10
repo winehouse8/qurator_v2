@@ -26,6 +26,7 @@ const config: Config = {
         border: 'var(--border)',
         'input-bg': 'var(--input-bg)',
         hover: 'var(--hover)',
+        active: 'var(--active)',
       },
       letterSpacing: {
         tighter: '-0.02em',

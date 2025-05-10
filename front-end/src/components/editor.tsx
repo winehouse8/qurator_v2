@@ -1,6 +1,7 @@
 import React from 'react'
 import { ContentCard } from './content-card'
 import { Button } from './ui/button'
+import { ImageSelectionGrid } from './editor/image-selection-grid'
 
 interface EditorProps {
   cardIndex: number
@@ -30,7 +31,7 @@ export function Editor({
   const scale = 1/3;
   
   // Calculate the number of editable cards (excluding the "new" card)
-  const editableCardCount = totalCards - 1;
+  const editableCardCount = totalCards;
   
   // Mock image URLs if none are provided
   const imageUrls = card.img_urls || [
@@ -123,51 +124,11 @@ export function Editor({
         {/* Image Selection Panel */}
         <div className="w-80 flex flex-col gap-6">
           <h3 className="text-lg font-semibold">검색한 이미지</h3>
-          
-          {/* Image Grid - Pinterest Style */}
-          <div className="flex flex-row gap-2 max-h-[450px] overflow-y-auto rounded-xl">
-            {/* First Column */}
-            <div className="flex flex-col gap-2 flex-1">
-              {imageUrls.filter((_, index) => index % 2 === 0).map((imageUrl, colIndex) => {
-                // Calculate the actual index in the original array
-                const actualIndex = colIndex * 2;
-                return (
-                  <div 
-                    key={actualIndex}
-                    className={`relative overflow-hidden cursor-pointer rounded-xl w-full border-2 flex-shrink-0 ${selectedImageIndex === actualIndex ? 'border-foreground' : 'border-transparent'}`}
-                    onClick={() => handleImageSelect(actualIndex)}
-                  >
-                    <img 
-                      src={imageUrl} 
-                      alt="Background image"
-                      className="w-full h-auto object-cover" 
-                    />
-                  </div>
-                );
-              })}
-            </div>
-            
-            {/* Second Column */}
-            <div className="flex flex-col gap-2 flex-1">
-              {imageUrls.filter((_, index) => index % 2 === 1).map((imageUrl, colIndex) => {
-                // Calculate the actual index in the original array
-                const actualIndex = colIndex * 2 + 1;
-                return (
-                  <div 
-                    key={actualIndex}
-                    className={`relative overflow-hidden cursor-pointer rounded-xl w-full border-2 flex-shrink-0 ${selectedImageIndex === actualIndex ? 'border-foreground' : 'border-transparent'}`}
-                    onClick={() => handleImageSelect(actualIndex)}
-                  >
-                    <img 
-                      src={imageUrl} 
-                      alt="Background image"
-                      className="w-full h-auto object-cover" 
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <ImageSelectionGrid
+            imageUrls={imageUrls}
+            selectedImageIndex={selectedImageIndex}
+            onSelect={handleImageSelect}
+          />
         </div>
       </div>
     </div>
