@@ -76,9 +76,9 @@ Open `http://<EC2‑PUBLIC‑IP>:8000/docs` to try the interactive Swagger UI.
 ```bash
 curl -G "http://localhost:8000/generate" \
   --data-urlencode "q=엄마선물추천" \
-  --data-urlencode "range=None" \
-  --header "X-Api-Key:<API_KEY>" \
-  --header "Accept: application/json"
+  --data-urlencode "range_=None" \
+  -H "X-Api-Key: <API_KEY>" \
+  -H "Accept: application/json"
 ```
 
 Open `http://<EC2‑PUBLIC‑IP>:8000/docs` to try the interactive Swagger UI.
