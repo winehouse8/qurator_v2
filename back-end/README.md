@@ -2,7 +2,7 @@
 # CardNews MVP – Quick Start on AWS EC2 (✈️ Poetry edition)
 
 > **TL;DR**  
-> Clone → set `.env` → `poetry install --no-root` → `playwright install chromium` → run Uvicorn.
+> Clone → set `.env` → `poetry install` → `playwright install chromium` → run Uvicorn.
 
 ---
 
@@ -42,7 +42,7 @@ curl -sSL https://install.python-poetry.org | python3 -
 poetry env use 3.11          # optional – picks system python3.11
 
 # Install locked dependencies (no editable install)
-poetry install --no-root
+poetry install
 ```
 
 This reads the included *pyproject.toml* / *poetry.lock* and creates an isolated virtual‑env under `.venv/`.

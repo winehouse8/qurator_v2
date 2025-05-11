@@ -50,4 +50,5 @@ back-end/.env
 back-end/poetry.lock
 back-end/repo_dump.txt
 back-end/poetry.lock
-back-end/venv*
+back-end/.venv
+*.pyc
