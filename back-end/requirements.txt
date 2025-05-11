@@ -1,0 +1,28 @@
+# --- core ---------------------------------------------------------
+fastapi==0.115.12                     # ^0.115.0
+uvicorn[standard]==0.34.2             # ^0.34.0  (+standard extra)
+motor==3.4.0
+dnspython==2.7.0
+
+pydantic==2.11.4
+pydantic-settings==2.2.1
+python-dotenv==1.1.0
+PyYAML==6.0.2
+orjson==3.10.18
+
+slowapi==0.1.9
+prometheus-fastapi-instrumentator==6.1.0
+
+# --- scraping -----------------------------------------------------
+beautifulsoup4==4.13.4
+camoufox[geoip]==0.4.11              # extra 필요 → [geoip]
+
+# --- GenAI --------------------------------------------------------
+google-adk==0.2.0                    # Playwright 기반, FastAPI >= 0.115 필요
+google-genai==1.11.0
+openai==1.25.0
+litellm==1.68.0
+
+# --- (optional) perf/dev ------------------------------------------
+# uvloop==0.21.0
+# watchfiles==1.0.5

@@ -1,0 +1,27 @@
+# config.yaml
+
+ports:
+  - 10001
+  - 10002
+  - 10003
+  - 10004
+  - 10005
+  - 10006
+  - 10007
+  - 10008
+  - 10009
+  - 10010
+
+# 프록시당 최소 대기 시간 (초)
+min_delay: 10
+
+# 요청 실패 시 최대 재시도 횟수
+max_retries: 2
+
+worker_count: 1
+rate_limit_per_min: 60    # slowapi 전역
+
+cors_origins:
+  - "https://your-frontend.com"  # 프로덕션
+  - "http://localhost:3000"      # Next.js dev
+  - "http://127.0.0.1:3000"

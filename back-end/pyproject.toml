@@ -1,0 +1,46 @@
+[tool.poetry]
+name = "cardnews"
+version = "0.1.0"
+description = "CardNews MVP – FastAPI + Google ADK"
+authors = ["You <you@example.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{ include = "cardnews", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<4.0"
+
+# --- core ---
+fastapi = "^0.115.0"
+uvicorn = {version = "^0.34.0", extras = ["standard"]}
+motor = "^3.4.0"
+dnspython = "^2.7.0"
+
+pydantic = "^2.11.4"
+pydantic-settings = "^2.2.1"
+python-dotenv = "^1.1.0"
+PyYAML = "^6.0.2"
+orjson = "^3.10.18"
+
+slowapi = "^0.1.9"
+prometheus-fastapi-instrumentator = "^6.1.0"
+
+# --- scraping ---
+beautifulsoup4 = "^4.13.4"
+camoufox = {extras = ["geoip"], version = "^0.4.11"}
+
+# --- GenAI ---
+google-adk = "^0.2.0"
+google-genai = "^1.11.0"
+openai = "^1.25.0"
+litellm = "^1.68.0"
+
+# --- optional perf/dev ---
+uvloop = {version = "^0.21.0", optional = true}
+watchfiles = {version = "^1.0.5", optional = true}
+
+[tool.poetry.extras]
+dev = ["uvloop", "watchfiles"]
+
+[tool.poetry.scripts]
+cardnews-api = "cardnews.main:app"

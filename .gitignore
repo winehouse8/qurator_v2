@@ -43,3 +43,11 @@ logs
 # System Files
 .DS_Store
 Thumbs.db 
+
+
+#back-end
+back-end/.env
+back-end/poetry.lock
+back-end/repo_dump.txt
+back-end/poetry.lock
+back-end/venv*
