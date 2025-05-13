@@ -42,8 +42,10 @@ logs
 
 # System Files
 .DS_Store
-Thumbs.db 
+Thumbs.db
 
+# Cursor specific
+.cursorignore
 
 #back-end
 back-end/.env
