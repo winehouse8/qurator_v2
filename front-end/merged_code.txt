@@ -1,0 +1,1045 @@
+Directory structure:
+src
+├── app
+│   ├── api
+│   │   ├── api.ts
+│   │   └── mock-api.tsx
+│   ├── content
+│   │   └── page.tsx
+│   ├── globals.css
+│   ├── layout.tsx
+│   ├── page.tsx
+│   └── providers.tsx
+├── components
+│   ├── editor
+│   │   └── image-selection-grid.tsx
+│   ├── ui
+│   │   ├── button.tsx
+│   │   ├── input.tsx
+│   │   ├── logo.tsx
+│   │   └── side-panel.tsx
+│   ├── content-card.tsx
+│   ├── content-downloader.tsx
+│   ├── content-grid.tsx
+│   ├── editor.tsx
+│   ├── topic-input.tsx
+│   └── topic-search-bar.tsx
+├── hooks
+│   └── useGenerateContent.ts
+└── lib
+    └── fonts.ts
+
+
+### app/api/api.ts
+
+/**
+ * 백엔드 API와 통신하기 위한 클라이언트 유틸리티 함수들
+ */
+
+type ApiResponse = {
+  success: boolean;
+  data?: any;
+  error?: string;
+};
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'RyidhPzTY_stFWJZ23Uf5WOx-cRBzp3PlDJHdCETeUQ';
+
+/**
+ * 주제를 기반으로 콘텐츠를 생성하는 API 요청
+ */
+export async function generateContent(query: string, range: string = 'None'): Promise<ApiResponse> {
+  try {
+    const response = await fetch(`${API_URL}/generate?q=${encodeURIComponent(query)}&range=${encodeURIComponent(range)}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'X-Api-Key': API_KEY,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `Error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      data,
+    };
+  } catch (error) {
+    console.error('API request failed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+} 
+
+### app/content/page.tsx
+
+'use client'
+
+import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { Logo } from '../../components/ui/logo'
+import { TopicSearchBar } from '../../components/topic-search-bar'
+import { ContentGrid } from '../../components/content-grid'
+import { SidePanel } from '../../components/ui/side-panel'
+import { Editor } from '../../components/editor'
+import { generateContent } from '../api/api'
+import { useGenerateContent } from '../../hooks/useGenerateContent'
+
+// Add mock image URLs in case they're not in the mock data
+const mockImageUrls = [
+  'https://placekitten.com/600/400',
+  'https://placekitten.com/601/401',
+  'https://placekitten.com/602/402',
+  'https://placekitten.com/603/403',
+  'https://placekitten.com/604/404',
+  'https://placekitten.com/605/405',
+];
+
+export default function ContentPage() {
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const searchParams = useSearchParams();
+
+  const topic = searchParams.get('topic')
+  const { data, isFetching, error } = useGenerateContent(topic)
+
+  const cards = useMemo(() => {
+    if (!data?.success) return []
+    const cardsWithImages = data.data.cards.map((card: any) => ({
+      ...card,
+      img_urls: card.img_urls || (card.imageUrl
+      ? [card.imageUrl, ...mockImageUrls.slice(1)]
+      : [...mockImageUrls])
+    }))
+    return cardsWithImages
+    }, [data])
+
+    const category = data?.data?.topic || topic || ''
+    const [selectedImageIndices, setSelectedImageIndices] = 
+    useState<number[]>(() => Array(cards.length).fill(0))
+
+  // 데이터가 로드되지 않았다면 로딩 상태 표시
+  if (isFetching) {
+    return (
+      <main className="flex min-h-screen">
+        <SidePanel>
+          <Logo />
+        </SidePanel>
+        <div className="flex-1 py-12 px-4">
+          <div className="w-full max-w-[1100px] mx-auto space-y-12">
+            <TopicSearchBar />
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-foreground"></div>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+  
+  const handleNavigate = (newIndex: number) => {
+    setEditingIndex(newIndex);
+  };
+
+  // Function to update the selected image index for a card
+  const handleImageSelect = (cardIndex: number, imageIndex: number) => {
+    setSelectedImageIndices(prevIndices => {
+      const newIndices = [...prevIndices];
+      newIndices[cardIndex] = imageIndex;
+      return newIndices;
+    });
+  };
+
+  return (
+    <main className="flex min-h-screen">
+      {/* Sidebar */}
+      <SidePanel>
+        <Logo />
+      </SidePanel>
+
+      {/* Main Content */}
+      <div className="flex-1 py-12 px-4">
+        <div className="w-full max-w-[1100px] mx-auto space-y-12">
+          {/* Search Bar */}
+          <TopicSearchBar />
+          
+          {/* Content Section */}
+          {editingIndex === null ? (
+            <ContentGrid 
+              onEdit={setEditingIndex} 
+              category={category || searchParams.get('topic') || ''} 
+              cards={cards} 
+              selectedImageIndices={selectedImageIndices}
+            />
+          ) : (
+            <Editor 
+              cardIndex={editingIndex} 
+              card={cards[editingIndex]} 
+              onBack={() => setEditingIndex(null)} 
+              onNavigate={handleNavigate}
+              onImageSelect={(imageIndex: number) => handleImageSelect(editingIndex, imageIndex)}
+              totalCards={cards.length}
+              selectedImageIndex={selectedImageIndices[editingIndex]}
+            />
+          )}
+        </div>
+      </div>
+    </main>
+  )
+} 
+
+### app/layout.tsx
+
+import type { Metadata } from 'next'
+import { Pretendard } from '../lib/fonts'
+import './globals.css'
+import Providers from './providers'
+
+export const metadata: Metadata = {
+  title: 'Qurator',
+  description: 'AI-powered content creation assistant',
+  icons: {
+    icon: '/assets/favicon.ico',
+  }
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <html lang="ko">
+      <body className={Pretendard.className}>
+        <Providers>
+          {children}
+        </Providers>
+      </body>
+    </html>
+  )
+} 
+
+### app/page.tsx
+
+import { Logo } from '../components/ui/logo'
+import { SidePanel } from '../components/ui/side-panel'
+import { TopicInput } from '../components/topic-input'
+
+export default function Home() {
+  return (
+    <main className="min-h-screen flex flex-row items-center ">
+      <SidePanel>
+        <Logo />
+      </SidePanel>
+      <div className="flex-1 w-full flex flex-col items-center justify-center gap-12">
+        <h1 className="text-title font-semibold tracking-tighter text-center">
+          오늘은 어떤 콘텐츠를 만들까요?
+        </h1>
+        <TopicInput />
+        <div className="h-[34px] w-full" /> 
+      </div>
+    </main>
+  )
+} 
+
+### app/providers.tsx
+
+'use client'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ReactNode, useState } from 'react'
+
+export default function Providers({ children }: { children: ReactNode }) {
+  const [client] = useState(() => new QueryClient())
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>
+}
+
+### components/content-card.tsx
+
+import { forwardRef } from 'react'
+import cn from 'classnames'
+
+interface ContentCardProps {
+  card: {
+    title?: string
+    sub_title?: string
+    body?: string
+    img_urls?: string[]
+    isNew?: boolean
+  }
+  category?: string
+  className?: string
+  isNew?: boolean
+  selectedImageIndex?: number
+}
+
+export const ContentCard = forwardRef<HTMLDivElement, ContentCardProps>(
+  function ContentCard({ card, category = 'text', className, isNew, selectedImageIndex = 0 }, ref) {
+    // Category-based style map
+    const categoryStyles = {
+      text: {
+        title: 'text-[96px] leading-1.5 font-semibold text-background break-keep',
+        sub_title: 'text-[64px] font-semibold text-background break-keep',
+        body: 'text-[48px] leading-2 text-background break-keep mt-12',
+      },
+      news: {
+        title: 'text-[96px] leading-1.5 font-semibold text-background break-keep',
+        body: 'text-[48px] leading-2 text-background break-keep mt-12',
+      },
+      place: {
+        title: 'text-[96px] leading-1.5 font-semibold text-background break-keep',
+        sub_title: 'text-[64px] font-semibold text-background break-keep',
+        body: 'text-[48px] leading-2 text-background break-keep mt-12',
+      }
+    }
+    const styles = categoryStyles[category] || categoryStyles.text
+
+    // Get the background image URL using the selectedImageIndex
+    const backgroundImageUrl = card.img_urls && card.img_urls.length > 0 
+      ? card.img_urls[selectedImageIndex] 
+      : undefined;
+
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          'relative shadow-[0_24px_48px_rgba(0,0,0,0.20)] overflow-hidden flex flex-col items-center justify-center bg-background transition-all duration-0',
+          isNew
+            ? 'rounded-2xl shadow-transparent border-8 border-dashed border-border text-foreground'
+            : 'border-transparent hover:outline hover:outline-8 hover:outline-muted',
+          className
+        )}
+        style={{
+          width: 1080,
+          height: 1350,
+          background: 'transparent',
+        }}
+      >
+        {/* Background Image */}
+        {!isNew && backgroundImageUrl && (
+          <div
+            className="absolute inset-0 w-full h-full z-0 pointer-events-none"
+            style={{
+              backgroundImage: `url(${backgroundImageUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat'
+            }}
+          />
+        )}
+        {/* Overlay */}
+        {!isNew && backgroundImageUrl && (
+          <div
+            className="absolute inset-0 z-10 bg-[linear-gradient(180deg,_rgba(0,0,0,0)_40%,_rgba(0,0,0,0.9)_100%)] pointer-events-none"
+          />
+        )}
+        {/* Content */}
+        <div className="relative z-20 h-[1080px] p-[64px] flex flex-col items-start justify-end w-full">
+          {card.title && <div className={styles.title}>{card.title}</div>}
+          {card.sub_title && <div className={styles.sub_title}>{card.sub_title}</div>}
+          {card.body && <div className={styles.body}>{card.body}</div>}
+        </div>
+      </div>
+    )
+  }
+)
+
+### components/content-downloader.tsx
+
+'use client'
+
+import html2canvas from 'html2canvas'
+import JSZip from 'jszip'
+import { saveAs } from 'file-saver'
+
+interface ContentDownloaderProps {
+  cardRefs: (HTMLDivElement | null)[]
+  filePrefix?: string
+  buttonText?: string
+}
+
+export function ContentDownloader({
+  cardRefs,
+  filePrefix = 'content-card',
+  buttonText = '전체 다운로드',
+}: ContentDownloaderProps) {
+  async function handleDownloadAll() {
+    const zip = new JSZip()
+    for (let i = 0; i < cardRefs.length; i++) {
+      const card = cardRefs[i]
+      if (!card) continue
+      
+      const canvas = await html2canvas(card, {
+        backgroundColor: null,
+        scale: 2, // 고해상도 캡처
+        useCORS: true, // 외부 이미지 리소스 허용
+        allowTaint: true, // 크로스 도메인 이미지 허용
+        logging: false,
+        imageTimeout: 0,
+        onclone: (document, element) => {
+          // 이미지가 로드될 때까지 대기를 위한 작업
+          const images = element.querySelectorAll('img');
+          if (images.length) {
+            Array.from(images).forEach(img => {
+              // 이미 캐시된 이미지는 완료 상태이므로 다시 로드하지 않음
+              if (!img.complete) {
+                img.setAttribute('crossorigin', 'anonymous');
+              }
+            });
+          }
+          
+          // 백그라운드 이미지가 있는 모든 div 요소 처리
+          const bgElements = element.querySelectorAll('div[style*="background-image"]');
+          bgElements.forEach(el => {
+            // 명시적으로 스타일 유지 (추가 처리가 필요한 경우)
+            const style = window.getComputedStyle(el);
+            const bgImage = style.backgroundImage;
+            
+            // 명시적 스타일 설정으로 캡처 품질 개선
+            if (bgImage && bgImage !== 'none') {
+              (el as HTMLElement).style.backgroundImage = bgImage;
+              (el as HTMLElement).style.backgroundSize = 'cover';
+              (el as HTMLElement).style.backgroundPosition = 'center';
+            }
+          });
+        }
+      })
+      
+      const blob = await new Promise<Blob | null>(resolve =>
+        canvas.toBlob(resolve, 'image/png', 1.0) // 최고 품질로 저장
+      )
+      
+      if (blob) zip.file(`${filePrefix}-${i + 1}.png`, blob)
+    }
+    const zipBlob = await zip.generateAsync({ type: 'blob' })
+    saveAs(zipBlob, `${filePrefix}s.zip`)
+  }
+
+  return (
+    <button
+      type="button"
+      className="btn-submit px-6 py-3 text-base font-semibold rounded-full"
+      onClick={handleDownloadAll}
+    >
+      {buttonText}
+    </button>
+  )
+} 
+
+### components/content-grid.tsx
+
+'use client'
+
+import { useRef } from 'react'
+import { ContentCard } from './content-card'
+import { ContentDownloader } from './content-downloader'
+
+interface ContentGridProps {
+  onEdit: (index: number) => void
+  category: string
+  cards: any[]
+  selectedImageIndices?: number[]
+}
+
+export function ContentGrid({ onEdit, category, cards, selectedImageIndices = [] }: ContentGridProps) {
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([])
+  const hiddenCardRefs = useRef<(HTMLDivElement | null)[]>([])
+
+  const scale = 1/4.5;
+
+  const handleCardClick = (index: number, isNew: boolean) => {
+    // Don't allow editing if the card is marked as new
+    if (!isNew) {
+      onEdit(index);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Label */}
+      <div className="flex flex-col items-start gap-1.5">
+        <h2 className="text-lg font-semibold tracking-tighter">카드 뉴스</h2>
+        <span className="text-sm text-muted">1080 × 1350</span>
+      </div>
+      {/* Grid */}
+      <div className="overflow-x-auto pb-6 px-4 custom-scrollbar" style={{ overflowY: 'visible' }}>
+        <div className="flex gap-3 py-6" style={{ overflow: 'visible' }}>
+          {cards.map((card, i) => (
+            <div
+              key={i}
+              className={`inline-block ${!card.isNew ? 'cursor-pointer' : 'cursor-default'}`}
+              style={{
+                width: 240,
+                height: 300,
+                transform: `scale(${scale})`,
+                transformOrigin: 'top left',
+              }}
+              onClick={() => handleCardClick(i, !!card.isNew)}
+            >
+              <ContentCard
+                ref={el => { cardRefs.current[i] = el }}
+                card={card}
+                category={category}
+                isNew={!!card.isNew}
+                selectedImageIndex={selectedImageIndices[i] || 0}
+              />
+            </div>
+          ))}
+        </div>
+      </div>      
+      {/* Hidden cards for download */}
+      <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+        {cards.map((card, i) => (
+          <ContentCard
+            key={i}
+            ref={el => { hiddenCardRefs.current[i] = el }}
+            card={card}
+            category={category}
+            selectedImageIndex={selectedImageIndices[i] || 0}
+          />
+        ))}
+      </div>
+      {/* Download Button */}
+      <div className="flex justify-center pt-4">
+        <ContentDownloader cardRefs={hiddenCardRefs.current} />
+      </div>
+    </div>
+  )
+}
+
+### components/editor.tsx
+
+import React from 'react'
+import { ContentCard } from './content-card'
+import { Button } from './ui/button'
+import { ImageSelectionGrid } from './editor/image-selection-grid'
+
+interface EditorProps {
+  cardIndex: number
+  card: {
+    title?: string
+    sub_title?: string
+    body?: string
+    img_urls?: string[]
+    ref_urls?: string[]
+    img_desc?: string[]
+    isNew?: boolean
+  }
+  onBack: () => void
+  onNavigate: (newIndex: number) => void
+  onImageSelect: (imageIndex: number) => void
+  totalCards: number
+  selectedImageIndex?: number
+}
+
+export function Editor({ 
+  cardIndex, 
+  card, 
+  onBack, 
+  onNavigate, 
+  onImageSelect, 
+  totalCards,
+  selectedImageIndex = 0
+}: EditorProps) {
+  // ContentCard dimensions are 1080x1350, we want to display at 360x450
+  const scale = 1/3;
+  
+  // Calculate the number of editable cards (excluding the "new" card)
+  const editableCardCount = totalCards;
+  
+  // Mock image URLs if none are provided
+  const imageUrls = card.img_urls || [
+    'https://placekitten.com/600/400',
+    'https://placekitten.com/601/401',
+    'https://placekitten.com/602/402',
+    'https://placekitten.com/603/403',
+    'https://placekitten.com/604/404',
+    'https://placekitten.com/605/405',
+  ];
+
+  const handlePrevious = () => {
+    if (cardIndex > 0) {
+      onNavigate(cardIndex - 1);
+    }
+  };
+
+  const handleNext = () => {
+    // Only navigate if not on the last editable card
+    if (cardIndex < editableCardCount - 1) {
+      onNavigate(cardIndex + 1);
+    }
+  };
+
+  // Handle image selection by index
+  const handleImageSelect = (index: number) => {
+    onImageSelect(index);
+  };
+
+  // If the card has isNew=true, don't render editor
+  if (card.isNew) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-row gap-12 items-start justify-center px-4 py-4">
+      {/* Back Button */}
+      <Button
+        variant='icon'
+        onClick={onBack}
+        className="h-10"
+      >
+        <img src="/assets/back-icon.svg" alt="Back" />
+      </Button>
+      
+      {/* Main Editor Area */}
+      <div className="flex flex-row gap-12">
+        {/* Card Preview Wrapper */}
+        <div className="flex flex-col gap-4">
+          <div style={{ width: 360, height: 450 }} className="relative overflow-hidden">
+            {/* Scaled ContentCard - positioned to center in the container */}
+            <div style={{ 
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: `translate(-50%, -50%) scale(${scale})`,
+            }}>
+              <ContentCard 
+                card={card} 
+                category="text" 
+                selectedImageIndex={selectedImageIndex}
+              />
+            </div>
+          </div>
+          <div className="flex flex-row text-sm text-muted items-center justify-between w-full">
+            Page {cardIndex + 1} of {editableCardCount}
+            <div className="flex gap-2">
+              <Button 
+                variant="icon"
+                aria-label="Previous page"
+                onClick={handlePrevious}
+                disabled={cardIndex === 0}
+                className={cardIndex === 0 ? "opacity-50 cursor-not-allowed" : ""}
+              >
+                <img src="/assets/left-arrow.svg" alt="Back" />
+              </Button>
+              <Button 
+                variant="icon"
+                aria-label="Next page"
+                onClick={handleNext}
+                disabled={cardIndex === editableCardCount - 1}
+                className={cardIndex === editableCardCount - 1 ? "opacity-50 cursor-not-allowed" : ""}
+              >
+                <img src="/assets/right-arrow.svg" alt="Next" />
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Image Selection Panel */}
+        <div className="w-[400px] flex flex-col gap-6">
+          <h3 className="text-lg font-semibold">검색한 이미지</h3>
+          <ImageSelectionGrid
+            imageUrls={imageUrls}
+            refUrls={card.ref_urls}
+            imgDescs={card.img_desc}
+            selectedImageIndex={selectedImageIndex}
+            onSelect={handleImageSelect}
+          />
+        </div>
+      </div>
+    </div>
+  )
+} 
+
+### components/editor/image-selection-grid.tsx
+
+import Image from 'next/image'
+import { useState } from 'react'
+
+interface ImageSelectionGridProps {
+  imageUrls: string[]
+  refUrls?: string[]
+  imgDescs?: string[]
+  selectedImageIndex: number
+  onSelect: (index: number) => void
+}
+
+export function ImageSelectionGrid({
+  imageUrls,
+  refUrls = [],
+  imgDescs = [],
+  selectedImageIndex,
+  onSelect,
+}: ImageSelectionGridProps) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+
+  // Split images into two columns
+  const columns = [[], []] as string[][]
+  imageUrls.forEach((url, idx) => columns[idx % 2].push(url))
+
+  return (
+    <div className="flex flex-row gap-2 max-h-[450px] overflow-y-auto rounded-xl">
+      {columns.map((col, colIdx) => (
+        <div className="flex flex-col gap-2 flex-1" key={colIdx}>
+          {col.map((imageUrl, rowIdx) => {
+            // Calculate the actual index in the original array
+            const actualIndex = colIdx === 0 ? rowIdx * 2 : rowIdx * 2 + 1
+            const hasSourceInfo = refUrls[actualIndex] || imgDescs[actualIndex]
+            
+            return (
+              <div
+                key={actualIndex}
+                className={`relative overflow-hidden cursor-pointer rounded-xl w-full border-2 flex-shrink-0 group ${selectedImageIndex === actualIndex ? 'border-active' : 'border-transparent'}`}
+                onClick={() => onSelect(actualIndex)}
+                onMouseEnter={() => setHoveredIndex(actualIndex)}
+                onMouseLeave={() => setHoveredIndex(null)}
+              >
+                <img
+                  src={imageUrl}
+                  alt={imgDescs[actualIndex] || "Background image"}
+                  className="w-full h-auto object-cover"
+                />
+                
+                {/* 출처 정보 (Source info) - only show on hover */}
+                {hasSourceInfo && hoveredIndex === actualIndex && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-[linear-gradient(180deg,_rgba(0,0,0,0)_0%,_rgba(0,0,0,1)_100%)] text-white p-3 pt-8 flex flex-col gap-2 text-xs transition-all duration-200">
+                    {refUrls[actualIndex] && (
+                      <div className="flex items-center gap-1">
+                        <span>출처:</span>
+                        <img 
+                          src={`https://www.google.com/s2/favicons?domain=${new URL(refUrls[actualIndex]).hostname}&sz=16`}
+                          alt=""
+                          className="w-4 h-4"
+                        />
+                        <a 
+                          href={refUrls[actualIndex]} 
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline truncate hover:text-blue-300"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {new URL(refUrls[actualIndex]).hostname.replace(/^www\./, '')}
+                        </a>
+                      </div>
+                    )}
+                    {imgDescs[actualIndex] && (
+                      <p className="line-clamp-2 text-xs font-semibold">{imgDescs[actualIndex]}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ))}
+    </div>
+  )
+} 
+
+### components/topic-input.tsx
+
+'use client'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Image from 'next/image'
+import { Input } from './ui/input'
+import { Button } from './ui/button'
+
+const RECOMMENDATIONS = [
+    '2025 FW 패션 트렌드',
+    '썸녀와 잘 되는 법',
+    '직장인 점심 메뉴 추천',  // Adding more recommendations for rotation
+    '주말 데이트 코스',
+    '재테크 초보 투자 방법',
+]
+
+export function TopicInput() {
+  const [topic, setTopic] = useState('')
+  const [startIndex, setStartIndex] = useState(0)
+  const router = useRouter()
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (topic.trim()) {
+      // API 호출 없이 바로 content 페이지로 이동
+      router.push(`/content?topic=${encodeURIComponent(topic.trim())}`)
+    }
+  }
+
+  const rotateRecommendations = () => {
+    setStartIndex((prevIndex) => (prevIndex + 2) % RECOMMENDATIONS.length)
+  }
+
+  const visibleRecommendations = [
+    RECOMMENDATIONS[startIndex],
+    RECOMMENDATIONS[(startIndex + 1) % RECOMMENDATIONS.length]
+  ]
+
+  return (
+    <form onSubmit={handleSubmit} className="w-full max-w-[450px] space-y-3">
+      <Input
+        value={topic}
+        onChange={(e) => setTopic(e.target.value)}
+        placeholder="주제를 입력해주세요."
+      />
+      <div className="flex justify-between items-end px-1.5">
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm font-medium text-muted">추천:</span>
+          {visibleRecommendations.map((recommendation) => (
+            <Button
+              key={recommendation}
+              onClick={() => setTopic(recommendation)}
+              type="button"
+            >
+              {recommendation}
+            </Button>
+          ))}
+          <Button 
+            variant="icon" 
+            onClick={rotateRecommendations}
+            className="p-[5px]"
+            type="button"
+          >
+            <Image
+              src="/assets/refresh-icon.svg"
+              alt=""
+              width={18}
+              height={18}
+            />
+          </Button>
+        </div>
+        <Button variant="submit" type="submit" aria-label="제출" className="p-2 bg-foreground rounded-full">
+          <div className="w-6 h-6 relative">
+            <Image
+              src="/assets/submit-icon.svg"
+              alt=""
+              fill
+              className="object-contain [&>path]:stroke-background"
+            />
+          </div>
+        </Button>
+      </div>
+    </form>
+  )
+} 
+
+### components/topic-search-bar.tsx
+
+'use client'
+
+import Image from 'next/image'
+import { useRouter,useSearchParams } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { useGenerateContent } from '../hooks/useGenerateContent'
+// import { generateContent } from '../app/api/api'
+
+export function TopicSearchBar() {
+    const router = useRouter()
+    const searchParams = useSearchParams()
+    const [topic, setTopic] = useState('')
+    const [loading, setLoading] = useState(false)
+    const isBusy = useGenerateContent(topic).isFetching
+  
+    // URL의 topic 파라미터가 변경될 때 input 값 업데이트
+    useEffect(() => {
+      setTopic(searchParams.get('topic') || '')
+    }, [searchParams])
+  
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault()
+
+      if (!topic.trim()) return
+      
+      setLoading(true)
+      
+      try {
+        // 백엔드 API 호출
+        // const response = await generateContent(topic.trim())
+        // console.log('API Response:', response)
+        
+        // 응답에 관계없이 결과 페이지로 이동 또는 갱신
+        router.push(`/content?topic=${encodeURIComponent(topic.trim())}`)
+      } catch (error) {
+        console.error('Error generating content:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+  
+    return (
+      <form onSubmit={handleSubmit} className="flex items-center gap-3 justify-center">
+        <Input
+          value={topic}
+          onChange={(e) => setTopic(e.target.value)}
+          className="w-[400px]"
+          disabled={isBusy}
+        />
+        <Button 
+          variant="submit" 
+          type="submit" 
+          aria-label="제출" 
+          className="p-2 bg-foreground rounded-full"
+          disabled={isBusy}
+        >
+          <div className="w-6 h-6 relative">
+            <Image
+              src="/assets/submit-icon.svg"
+              alt=""
+              fill
+              className="object-contain [&>path]:stroke-background"
+            />
+          </div>
+        </Button>
+      </form>
+    )
+  }
+
+### components/ui/button.tsx
+
+import { forwardRef } from 'react'
+import cn from 'classnames'
+
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: 'small' | 'icon' | 'submit'
+  className?: string
+}
+
+const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ variant, className = '', children, ...props }, ref) => {
+    const variantClasses = {
+      small: 'bg-input-bg text-sm text-muted font-medium rounded-[8px] py-1 px-2 border-[1px] border-border transition-colors duration-100 hover:bg-hover active:bg-[#DFDFDF]',
+      icon: 'inline-flex items-center justify-center rounded-lg p-1.5 transition-colors duration-100 hover:bg-[#EEEEEE] active:bg-[#DFDFDF] gap-2.5',
+      submit: 'bg-foreground rounded-full flex items-center justify-center'
+    }
+    
+    const baseClass = variant ? variantClasses[variant] : variantClasses.small
+    
+    return (
+      <button
+        ref={ref}
+        className={cn(baseClass, className)}
+        {...props}
+      >
+        {children}
+      </button>
+    )
+  }
+)
+
+Button.displayName = 'Button'
+
+export { Button } 
+
+### components/ui/input.tsx
+
+import { forwardRef } from 'react'
+
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  className?: string
+}
+
+const Input = forwardRef<HTMLInputElement, InputProps>(
+  ({ className = '', ...props }, ref) => {
+    return (
+      <input
+        ref={ref}
+        className={`input-base ${className}`}
+        {...props}
+      />
+    )
+  }
+)
+
+Input.displayName = 'Input'
+
+export { Input } 
+
+### components/ui/logo.tsx
+
+import Image from 'next/image'
+import Link from 'next/link'
+
+export function Logo() {
+  return (
+    <Link href="/" className="w-[24px] h-[24px] relative block hover:opacity-80 transition-opacity">
+      <Image
+        src="/assets/logo.svg"
+        alt="Qurator Logo"
+        fill
+        className="object-contain"
+        priority
+      />
+    </Link>
+  )
+} 
+
+### components/ui/side-panel.tsx
+
+import { ReactNode } from 'react'
+
+interface SidePanelProps {
+  children: ReactNode
+  className?: string
+}
+
+export function SidePanel({ children, className }: SidePanelProps) {
+  return (
+    <aside className={`h-screen p-6 flex flex-col items-center bg-background  ${className ?? ''}`}>
+      {children}
+    </aside>
+  )
+} 
+
+### hooks/useGenerateContent.ts
+
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { generateContent } from '../app/api/api'
+
+export const useGenerateContent = (topic?: string | null) =>
+    useQuery({
+      queryKey: ['content', topic],
+      queryFn: () => generateContent(topic!), // topic이 있을 때만 호출
+      enabled: !!topic,
+      staleTime: 5 * 60 * 1000,              // 5 분 캐싱
+      /**
+       * v5 방식 ─ 두 가지 중 하나 선택
+       * 1) placeholderData: keepPreviousData       ← 헬퍼 함수 사용
+       * 2) placeholderData: (prev) => prev         ← 아이덴티티 함수
+       */
+      placeholderData: keepPreviousData,
+      // placeholderData: (prev) => prev,
+    })
+
+### lib/fonts.ts
+
+import localFont from 'next/font/local'
+
+export const Pretendard = localFont({
+  src: [
+    {
+      path: '../../public/fonts/Pretendard-Regular.woff2',
+      weight: '400',
+      style: 'normal',
+    },
+    {
+      path: '../../public/fonts/Pretendard-Medium.woff2',
+      weight: '500',
+      style: 'normal',
+    },
+    {
+      path: '../../public/fonts/Pretendard-SemiBold.woff2',
+      weight: '600',
+      style: 'normal',
+    },
+  ],
+  variable: '--font-pretendard',
+  display: 'swap',
+}) 
+

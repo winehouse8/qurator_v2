@@ -1,16 +1,17 @@
 # dependencies
-node_modules
-.pnp
+/node_modules
+/.pnp
 .pnp.js
 
 # testing
-coverage
+/coverage
 
 # next.js
-.next/
-out/
-build
-dist
+/.next/
+/out/
+
+# production
+/build
 
 # misc
 .DS_Store
@@ -24,6 +25,7 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+/front-end/.env.local
 
 # vercel
 .vercel
@@ -33,17 +35,9 @@ yarn-error.log*
 next-env.d.ts
 
 # IDE
-.vscode
-.idea
-
-# Logs
-logs
-*.log
-
-# System Files
-.DS_Store
-Thumbs.db 
-
+.vscode/
+.idea/
+.cursor/ 
 
 #back-end
 back-end/.env
@@ -51,4 +45,6 @@ back-end/poetry.lock
 back-end/repo_dump.txt
 back-end/poetry.lock
 back-end/.venv
+back-end/**/*.pyc
 **.pyc
+*.pyc

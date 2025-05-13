@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Logo } from '../../components/ui/logo'
 import { TopicSearchBar } from '../../components/topic-search-bar'
 import { ContentGrid } from '../../components/content-grid'
 import { SidePanel } from '../../components/ui/side-panel'
 import { Editor } from '../../components/editor'
-import { mocking_function } from '../api/mock-api'
+import { useGenerateContent } from '../../hooks/useGenerateContent'
 
 // Add mock image URLs in case they're not in the mock data
 const mockImageUrls = [
@@ -18,30 +19,80 @@ const mockImageUrls = [
   'https://placekitten.com/605/405',
 ];
 
-const CARD_DATA = JSON.parse(mocking_function());
-
-// Ensure all cards have img_urls
-const cardsWithImages = CARD_DATA.cards.map(card => ({
-  ...card,
-  img_urls: card.img_urls || [...mockImageUrls]
-}));
-
-// Add the "new content" card
-const allCards = [
-  ...cardsWithImages
-];
-
 export default function ContentPage() {
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  
-  // Create a state to manage cards without modifying their original structure
-  const [cards] = useState(allCards);
-  
-  // Track selected image index for each card separately
-  const [selectedImageIndices, setSelectedImageIndices] = useState<number[]>(
-    Array(cards.length).fill(0) // Default to first image (index 0) for all cards
-  );
+   /* ────── URL 파라미터 → topic ────── */
+  const searchParams = useSearchParams();
+  const topic = searchParams.get('topic') ?? ''
 
+  /* ────── API 호출 (React Query) ────── */
+  const { 
+    data, 
+    isPending, 
+    isFetching, 
+    isError,
+    refetch,
+  } = useGenerateContent(topic)
+
+   /* ────── 카드 데이터 가공 ────── */
+  const cards = useMemo(() => {
+    if (!data?.success) return []
+
+    return data.data.cards.map((card: any) => ({
+      ...card,
+      img_urls: card.img_urls
+        ? card.img_urls
+        : card.imageUrl
+        ? [card.imageUrl, ...mockImageUrls.slice(1)]
+        : [...mockImageUrls],
+    }))
+  }, [data])
+
+  /* ────── 선택 이미지 인덱스 관리 ────── */ 
+  const [selectedImageIndices, setSelectedImageIndices] = 
+  useState<number[]>(() => []);
+  useEffect(() => {
+      setSelectedImageIndices(Array(cards.length).fill(0))
+  }, [cards.length]);
+
+  /* ────── 편집 중인 카드 인덱스 ────── */
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+
+  /* ────── 데이터가 로드되지 않았다면 로딩 상태 표시 ────── */
+
+  if (isError) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-6">
+        <p className="text-lg font-semibold">콘텐츠를 불러오지 못했습니다.</p>
+        <button
+          onClick={() => refetch()}
+          className="px-4 py-2 bg-foreground text-background rounded-lg"
+        >
+          다시 시도
+        </button>
+      </main>
+    )
+  }
+  // 데이터가 로드되지 않았다면 로딩 상태 표시
+  if (isPending || isFetching) {
+    return (
+      <main className="flex min-h-screen">
+        <SidePanel>
+          <Logo />
+        </SidePanel>
+        <div className="flex-1 py-12 px-4">
+          <div className="w-full max-w-[1100px] mx-auto space-y-12">
+            <TopicSearchBar />
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-foreground"></div>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  const category = data?.data?.topic || topic
+  
   const handleNavigate = (newIndex: number) => {
     setEditingIndex(newIndex);
   };
@@ -72,7 +123,7 @@ export default function ContentPage() {
           {editingIndex === null ? (
             <ContentGrid 
               onEdit={setEditingIndex} 
-              category={CARD_DATA.category} 
+              category={category || searchParams.get('topic') || ''} 
               cards={cards} 
               selectedImageIndices={selectedImageIndices}
             />

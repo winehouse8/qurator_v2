@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Pretendard } from '../lib/fonts'
 import './globals.css'
+import Providers from './providers'
 
 export const metadata: Metadata = {
   title: 'Qurator',
@@ -17,7 +18,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko">
-      <body className={Pretendard.className}>{children}</body>
+      <body className={Pretendard.className}>
+        <Providers>
+          {children}
+        </Providers>
+      </body>
     </html>
   )
 } 

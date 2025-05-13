@@ -24,6 +24,8 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env
+/front-end/.env.local
 
 # vercel
 .vercel
@@ -36,3 +38,11 @@ next-env.d.ts
 .vscode/
 .idea/
 .cursor/ 
+
+#back-end
+back-end/.env
+back-end/poetry.lock
+back-end/repo_dump.txt
+back-end/poetry.lock
+back-end/.venv
+**.pyc

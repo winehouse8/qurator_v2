@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Input } from './ui/input'
 import { Button } from './ui/button'
-import { mocking_function } from '../app/api/mock-api'
 
 const RECOMMENDATIONS = [
     '2025 FW 패션 트렌드',
@@ -21,10 +20,9 @@ export function TopicInput() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('Submited topic: ', topic);
-    const res = mocking_function();
-    console.log(res);
+    
     if (topic.trim()) {
+      // API 호출 없이 바로 content 페이지로 이동
       router.push(`/content?topic=${encodeURIComponent(topic.trim())}`)
     }
   }
@@ -68,7 +66,6 @@ export function TopicInput() {
               alt=""
               width={18}
               height={18}
-            //   className="[&>path]:stroke-muted group-hover:[&>path]:stroke-background"
             />
           </Button>
         </div>

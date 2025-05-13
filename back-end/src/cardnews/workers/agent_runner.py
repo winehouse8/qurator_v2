@@ -123,8 +123,8 @@ CLASSIFY_AGENT = Agent(
     instruction=(
         "사용자가 요청한 카드뉴스 주제 '{keyword}' 를 보고 카테고리를 정확히 장소,꿀팁,뉴스 중에 하나로 출력하세요. 이외의 단어는 출력하지 마세요.\n"
         "- 음식·맛집·카페·데이트코스·전시회·가게 ⇒ 장소\n"
-        "- 사용법·팁·비법·노하우·정보 ⇒ 꿀팁'\n"
-        "- 최신 뉴스 사건 ⇒ 뉴스'\n")
+        "- 최신 뉴스 사건 ⇒ 뉴스'\n"
+        "- 사용법·팁·비법·노하우·정보 (장소와 뉴스가 아닌 대부분의 것) ⇒ 꿀팁'\n")
 )
 
 FILTER_AGENT = Agent(
@@ -144,7 +144,7 @@ RESTAURANT_MAKER = Agent(
         "title 은보통의 SNS 포스팅 제목처럼, 쉽고 직설적으로 흥미로운 표현을 써서 클릭을 유도하는 제목을 쓰는것이 좋습니다.\n"
         "sub_title에는 해당 장소 또는 상호 이름을 기본으로 적는데, 만약 일반적인 상호라면, 잠실~~떡볶이 처럼 지명을 상호 앞에 함께 적어 특정할 수 있도록 써야합니다. 만약  기본으로 적은 장소 또는 상호 이름 이외로 추가로 소제목으로 붙히면 좋은 정보가 있으면, 추가해도 됩니다."
         "body에는 해당 장소 또는 가게에 대한 간략한 장점,특징, 주요정보(주요메뉴,기간/시간 등)를 씁니다. 만약 검색 결과상 주요정보(주요메뉴,기간/시간 등)가 없으면 쓰지 않아도 되지만, 있다면 쓰는것이 좋습니다. 최대 100자 이내 (2~4문장)로 써야합니다. 꼭 최대 글자수를 채울 필요는 없지만, 독자들이 흥미로워할 내용이 많다면 길게, 아니라면 짧게 쓰고 넘어가는게 좋습니다."
-        "img_keyword는 sub_title과 똑같이, 해당 장소/가게 이름으로 쓰면돼. 다만  title에 들어가는 img_keyword로는, 주제와 관련있으면서 후킹하도록 어떤 사진이 들어가면 좋을지 생각한뒤, 그 사진을 검색할 수 있는 검색어를 적어줘. 내용과 꼭 100% 일치하지 않더라도, 관련있으면서 구글 이미지 검색시 배경으로 쓸만한 사진이 나올만한 검색어를 써야합니다.\n"
+        "img_keyword는 sub_title과 똑같이, 해당 장소/가게 이름으로 쓰면돼. 다만  title에 들어가는 img_keyword로는, 주제와 관련있으면서 후킹하도록 어떤 사진이 들어가면 좋을지 생각한뒤, 그 사진을 검색할 수 있는 검색어를 적어줘. 내용과 꼭 100% 일치하지 않더라도, 관련있으면서 구글 이미지 검색시 배경으로 쓸만한 사진이 나올만한 검색어를 써야합니다.그리고 검색된 이미지는 카드뉴스의 배경으로 쓰이기 때문에 사진에 텍스트가 없을 만한 이미지 키워드를 선정하는게 좋아.\n"
         "꼭 필요한 경우가 아니면 한자는 쓰지마. 기본적으로는 한글로 쓰는게 좋아.\n"
         "다른 텍스트를 출력하지 말고 꼭 Json 형식의 출력만 하세요! 백틱json도 쓰지말고 그냥 대괄호,중괄호'[{' 로 바로 시작하도록.\n"
         "---참조할 검색 결과---\n"
@@ -159,9 +159,9 @@ TIPS_MAKER = Agent(
         "- 첫 dict: title, img_keyword 를 key로 가지는 dict\n"
         "- 이후 dict: sub_title, body, img_keyword를 key로 가지는 dict\n"
         "카드뉴스의 내용으로는 아래 참조할 검색 결과를 바탕으로 뻔한 사실이 아닌, 구체적이고 흥미로운 내용을 쓰는것이 중요합니다.\n"
-        "title 은보통의 SNS 포스팅 제목처럼, 쉽고 직설적으로 흥미로운 표현을 써서 클릭을 유도하는 제목을 쓰는것이 좋습니다.\n"
+        "title 은 보통의 SNS 포스팅 제목처럼, 쉽고 직설적으로 흥미로운 표현을 써서 클릭을 유도하는 제목을 쓰는것이 좋습니다.\n"
         "sub_title은 최대 40자 이내, body는 최대 100자 이내 (2~4문장)로 써야합니다. 꼭 최대 글자수를 채울 필요는 없지만, 독자들이 흥미로워할 내용이 많다면 길게, 아니라면 짧게 쓰고 넘어가는게 좋습니다.\n"
-        "img_keyword는 해당 페이지에 어울리는 이미지를 검색하기 위한 구글 검색어를 써야합니다. 특히 title쪽 img_keyword는 후킹한 사진을, 그 이후 img_keyword는 해당 페이지 내용과 관련 있는 img_keyword를 쓰는것이 좋습니다. 먼저 어떤 사진이 들어가야 사람들에게 후킹한 사진이 나올지 / 또 카드뉴스의 배경사진으로 쓰기 좋을지 생각한 뒤, 해당 사진을 얻기위한 일반적인 검색어가 무엇인지 생각해서 결정해야합니다. 내용과 꼭 100% 일치하지 않더라도, 관련있으면서 구글 이미지 검색시 배경으로 쓸만한 사진이 나올만한 검색어를 써야합니다. \n"
+        "img_keyword는 해당 페이지에 어울리는 이미지를 검색하기 위한 구글 검색어를 써야합니다. 특히 title쪽 img_keyword는 후킹한 사진을, 그 이후 img_keyword는 해당 페이지 내용과 관련 있는 img_keyword를 쓰는것이 좋습니다. 먼저 어떤 사진이 들어가야 사람들에게 후킹한 사진이 나올지 / 또 카드뉴스의 배경사진으로 쓰기 좋을지(텍스트가 없을수록 좋음) 생각한 뒤, 해당 사진을 얻기위한 일반적인 검색어가 무엇인지 생각해서 결정해야합니다. 검색어는 추상적인 검색어가 아닌, 인물이나 캐릭터의 이름 혹은 형태가 있는 무언가 혹은 이미지가 바로 연상되는 키워드를 지칭하는 명사가 좋아. 예를들어, 해당 페이지의 주제가 알뜰폰 이면, 알뜰한것을 이미지화해서 저금통을 검색어로 쓰던가, 아니면 폰을 이미지화해서 핸드폰을 검색어로 쓰는 식이야. 그리고 검색된 이미지는 카드뉴스의 배경으로 쓰이기 때문에 사진에 텍스트가 없을 만한 이미지 키워드를 선정하는게 좋아. \n"
         "title쪽 img_keyword를 떠올릴때에는 (1)관련된 행위를 하는 연예인(여: 장원영|유나|카리나|설윤, 남:차은우|방탄소년단 뷔) 사진을 활용하는 전략, (2) 그냥 해당 페이지와 관련있는 최대한 재미있거나 쇼킹하거나 후킹한 사진, (3)1,2와 같은 사진이 없을것 같은 주제이면 그냥 내용과 관련있는 사진을 쓰는것이 좋습니다.\n"
         "만약 연예인 사진을 쓴다면, 컨텐츠의 주 독자가 남성이면 여자연예인을, 여성이면 그 반대 사진을 쓰는것이 좋습니다.\n"
         "꼭 필요한 경우가 아니면 한자는 쓰지마. 기본적으로는 한글로 쓰는게 좋아.\n"
@@ -179,7 +179,7 @@ NEWS_MAKER = Agent(
         "- 첫 dict: title, img_keyword 를 key로 가지는 dict\n"
         "- 이후 dict: body, img_keyword를 key로 가지는 dict\n"
         "뉴스 기사에 대한 팩트(아래 검색 내용)를 기반으로, 사용자가 요청한 키워드에 대한 카드뉴스를 출력하세요. 꼭 아래 검색 내용에 있는 내용으로 카드뉴스를 출력해야 합니다.\n"
-        "img_keyword는 해당 뉴스 내용에 어울리며 후킹한 이미지를 검색하기 위한 구글 검색어를 써야합니다. 먼저 어떤 사진이 들어가야 사람들에게 후킹한 사진이 나올지 생각한 뒤, 해당 사진을 얻기위한 일반적인 검색어가 무엇인지 생각해서 결정해야해. 내용과 꼭 100% 일치하지 않더라도, 관련있으면서 구글 이미지 검색시 배경으로 쓸만한 사진이 나올만한 검색어를 써야합니다.\n"
+        "img_keyword는 해당 뉴스 내용에 어울리며 후킹한 이미지를 검색하기 위한 구글 검색어를 써야합니다. 먼저 어떤 사진이 들어가야 사람들에게 후킹한 사진이 나올지 생각한 뒤, 해당 사진을 얻기위한 일반적인 검색어가 무엇인지 생각해서 결정해야해. 내용과 꼭 100% 일치하지 않더라도, 관련있으면서 구글 이미지 검색시 배경으로 쓸만한 사진이 나올만한 검색어를 써야합니다. 그리고 검색된 이미지는 카드뉴스의 배경으로 쓰이기 때문에 사진에 텍스트가 없을 만한 이미지 키워드를 선정하는게 좋아.\n"
         "body는 2~4문장, 최대 150자 이내로 써야합니다. 꼭 최대 글자수를 채울 필요는 없지만, 독자들이 흥미로워할 내용이 많다면 길게, 아니라면 짧게 쓰고 넘어가는게 좋습니다."
         "꼭 필요한 경우가 아니면 한자는 쓰지마. 기본적으로는 한글로 쓰는게 좋아.\n"
         "다른 텍스트를 출력하지 말고 꼭 Json 형식의 출력만 하세요! 백틱json도 쓰지말고 그냥 대괄호,중괄호'[{' 로 바로 시작하도록.\n"
@@ -248,7 +248,7 @@ async def generate_cardnews(client, keyword: str, date_range: str = None) -> str
     selected_json = await _run_agent(runner_flt, "filter")
 
     print("=====크롤링 대상 url=====")
-    print(selected_json)
+    #print(selected_json)
     selected_url_list= safe_parse_urls(selected_json)
     selected_url_list = clean_urls(selected_url_list)
     print(selected_url_list)
@@ -278,8 +278,8 @@ async def generate_cardnews(client, keyword: str, date_range: str = None) -> str
             author="system",
             actions=EventActions(state_delta={"page_texts": page_texts}))
     )
-    print("====== crawled text context=======")
-    print(page_texts)
+    #print("====== crawled text context=======")
+    #print(page_texts)
 
 
 
@@ -330,6 +330,24 @@ async def generate_cardnews(client, keyword: str, date_range: str = None) -> str
     res_json["category"] = category_for_json
     res_json["cards"] = pages
     res_json["desc"] = "default descriptions"
+
+    for i, card in enumerate(res_json['cards']):
+        print(f"[{i+1}] card")
+        if 'title' in card:
+            print("title:", card['title'])
+        if 'sub_title' in card:
+            print("sub_title:", card['sub_title'])
+        if 'body' in card:
+            print("body:", card['body'])
+        if 'img_keyword' in card:
+            print("img_keyword:", card['img_keyword'])
+        #if 'img_urls' in card:
+        #    print(card['img_urls'])
+        #if 'ref_urls' in card:
+        #    print(card['ref_urls'])
+        #if 'img_desc' in card:
+        #    print(card['img_desc'])
+        print("--------------------------------")
 
 
     return json.dumps(res_json, ensure_ascii=False, indent=None)
