@@ -35,9 +35,19 @@ yarn-error.log*
 next-env.d.ts
 
 # IDE
-.vscode/
-.idea/
-.cursor/ 
+.vscode
+.idea
+
+# Logs
+logs
+*.log
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Cursor specific
+.cursorignore
 
 #back-end
 back-end/.env
