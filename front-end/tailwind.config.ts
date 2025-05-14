@@ -5,6 +5,7 @@ const config: Config = {
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/components/skeleton-loading.tsx',
   ],
   theme: {
     fontSize: {
@@ -30,6 +31,15 @@ const config: Config = {
       },
       letterSpacing: {
         tighter: '-0.02em',
+      },
+      keyframes: {
+        flash: {
+          '0%, 100%': { backgroundPosition: '0% 0%' },
+          '50%': { backgroundPosition: '100% 0%' },
+        },
+      },
+      animation: {
+        'flash': 'flash 1.2s linear infinite',
       },
     },
   },

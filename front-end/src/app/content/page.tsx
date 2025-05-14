@@ -8,6 +8,7 @@ import { ContentGrid } from '../../components/content-grid'
 import { SidePanel } from '../../components/ui/side-panel'
 import { Editor } from '../../components/editor'
 import { useGenerateContent } from '../../hooks/useGenerateContent'
+import SkeletonLoading from '../../components/skeleton-loading'
 
 // Add mock image URLs in case they're not in the mock data
 const mockImageUrls = [
@@ -82,9 +83,7 @@ export default function ContentPage() {
         <div className="flex-1 py-12 px-4">
           <div className="w-full max-w-[1100px] mx-auto space-y-12">
             <TopicSearchBar />
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-foreground"></div>
-            </div>
+            <SkeletonLoading />
           </div>
         </div>
       </main>
