@@ -27,6 +27,7 @@ src
 ├── hooks
 │   └── useGenerateContent.ts
 └── lib
+    ├── api.ts
     └── fonts.ts
 
 
@@ -42,8 +43,8 @@ type ApiResponse = {
   error?: string;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'RyidhPzTY_stFWJZ23Uf5WOx-cRBzp3PlDJHdCETeUQ';
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 
 /**
  * 주제를 기반으로 콘텐츠를 생성하는 API 요청
@@ -88,7 +89,6 @@ import { TopicSearchBar } from '../../components/topic-search-bar'
 import { ContentGrid } from '../../components/content-grid'
 import { SidePanel } from '../../components/ui/side-panel'
 import { Editor } from '../../components/editor'
-import { generateContent } from '../api/api'
 import { useGenerateContent } from '../../hooks/useGenerateContent'
 
 // Add mock image URLs in case they're not in the mock data
@@ -102,29 +102,60 @@ const mockImageUrls = [
 ];
 
 export default function ContentPage() {
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+   /* ────── URL 파라미터 → topic ────── */
   const searchParams = useSearchParams();
+  const topic = searchParams.get('topic') ?? ''
 
-  const topic = searchParams.get('topic')
-  const { data, isFetching, error } = useGenerateContent(topic)
+  /* ────── API 호출 (React Query) ────── */
+  const { 
+    data, 
+    isPending, 
+    isFetching, 
+    isError,
+    refetch,
+  } = useGenerateContent(topic)
 
+   /* ────── 카드 데이터 가공 ────── */
   const cards = useMemo(() => {
     if (!data?.success) return []
-    const cardsWithImages = data.data.cards.map((card: any) => ({
+
+    return data.data.cards.map((card: any) => ({
       ...card,
-      img_urls: card.img_urls || (card.imageUrl
-      ? [card.imageUrl, ...mockImageUrls.slice(1)]
-      : [...mockImageUrls])
+      img_urls: card.img_urls
+        ? card.img_urls
+        : card.imageUrl
+        ? [card.imageUrl, ...mockImageUrls.slice(1)]
+        : [...mockImageUrls],
     }))
-    return cardsWithImages
-    }, [data])
+  }, [data])
 
-    const category = data?.data?.topic || topic || ''
-    const [selectedImageIndices, setSelectedImageIndices] = 
-    useState<number[]>(() => Array(cards.length).fill(0))
+  /* ────── 선택 이미지 인덱스 관리 ────── */ 
+  const [selectedImageIndices, setSelectedImageIndices] = 
+  useState<number[]>(() => []);
+  useEffect(() => {
+      setSelectedImageIndices(Array(cards.length).fill(0))
+  }, [cards.length]);
 
+  /* ────── 편집 중인 카드 인덱스 ────── */
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+
+  /* ────── 데이터가 로드되지 않았다면 로딩 상태 표시 ────── */
+
+  if (isError) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-6">
+        <p className="text-lg font-semibold">콘텐츠를 불러오지 못했습니다.</p>
+        <button
+          onClick={() => refetch()}
+          className="px-4 py-2 bg-foreground text-background rounded-lg"
+        >
+          다시 시도
+        </button>
+      </main>
+    )
+  }
   // 데이터가 로드되지 않았다면 로딩 상태 표시
-  if (isFetching) {
+  if (isPending || isFetching) {
     return (
       <main className="flex min-h-screen">
         <SidePanel>
@@ -141,6 +172,8 @@ export default function ContentPage() {
       </main>
     );
   }
+
+  const category = data?.data?.topic || topic
   
   const handleNavigate = (newIndex: number) => {
     setEditingIndex(newIndex);
@@ -254,7 +287,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactNode, useState } from 'react'
 
 export default function Providers({ children }: { children: ReactNode }) {
-  const [client] = useState(() => new QueryClient())
+  const [client] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            refetchOnWindowFocus: false,   // ← 창 포커스시 재요청 OFF
+            // 필요하면 추가 ↓
+            // refetchOnReconnect: false,
+            // refetchOnMount: false,
+          },
+        },
+      }),
+  )
+
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>
 }
 
@@ -834,10 +880,10 @@ export function TopicInput() {
 
 import Image from 'next/image'
 import { useRouter,useSearchParams } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
-import { useGenerateContent } from '../hooks/useGenerateContent'
+// import { useGenerateContent } from '../hooks/useGenerateContent'
 // import { generateContent } from '../app/api/api'
 
 export function TopicSearchBar() {
@@ -845,7 +891,7 @@ export function TopicSearchBar() {
     const searchParams = useSearchParams()
     const [topic, setTopic] = useState('')
     const [loading, setLoading] = useState(false)
-    const isBusy = useGenerateContent(topic).isFetching
+    const [isPending, startTransition] = useTransition()
   
     // URL의 topic 파라미터가 변경될 때 input 값 업데이트
     useEffect(() => {
@@ -859,18 +905,14 @@ export function TopicSearchBar() {
       
       setLoading(true)
       
-      try {
+      startTransition(() => {
         // 백엔드 API 호출
         // const response = await generateContent(topic.trim())
         // console.log('API Response:', response)
         
         // 응답에 관계없이 결과 페이지로 이동 또는 갱신
         router.push(`/content?topic=${encodeURIComponent(topic.trim())}`)
-      } catch (error) {
-        console.error('Error generating content:', error)
-      } finally {
-        setLoading(false)
-      }
+      })
     }
   
     return (
@@ -879,14 +921,14 @@ export function TopicSearchBar() {
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
           className="w-[400px]"
-          disabled={isBusy}
+          disabled={isPending}
         />
         <Button 
           variant="submit" 
           type="submit" 
           aria-label="제출" 
           className="p-2 bg-foreground rounded-full"
-          disabled={isBusy}
+          disabled={isPending}
         >
           <div className="w-6 h-6 relative">
             <Image
@@ -1016,6 +1058,10 @@ export const useGenerateContent = (topic?: string | null) =>
       placeholderData: keepPreviousData,
       // placeholderData: (prev) => prev,
     })
+
+### lib/api.ts
+
+ 
 
 ### lib/fonts.ts
 
