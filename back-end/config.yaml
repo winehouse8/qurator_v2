@@ -22,6 +22,7 @@ worker_count: 1
 rate_limit_per_min: 60    # slowapi 전역
 
 cors_origins:
-  - "https://your-frontend.com"  # 프로덕션
+  - "http://13.209.194.237:3000" # AWS
+  - "13.209.194.237:3000"  # AWS
   - "http://localhost:3000"      # Next.js dev
   - "http://127.0.0.1:3000"
