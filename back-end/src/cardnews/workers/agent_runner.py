@@ -1,6 +1,15 @@
-"""agent.py – Sequential Card-News Workflow (async-only, official ADK)
-===================================================================
-키워드 ➜ 분류 ➜ URL 필터 ➜ 카드뉴스 생성 3단계를 비동기 툴로 실행합니다.
+# agent_runner.py – 리팩토링 버전
+"""Card‑news generator powered by Google ADK + proxy 스크래핑.
+
+변경 사항
+-----------
+1.  Agent instruction 문자열을 ``instructions.py`` 에 분리.
+2.  분기 없는 카드뉴스 제작 파이프라인:
+      Google 검색 ➜ FILTER_AGENT ➜ 본문 크롤링 ➜ TEXT_MAKER_AGENT
+      ➜ IMG_KEYWORD_AGENT ➜ 이미지 URL 보강 ➜ 최종 JSON 반환.
+
+   * layout 판단: 두 번째 장부터 'sub_title' 존재 여부에 따라
+     category = "with_sub_title" / "no_sub_title" 로 설정.
 """
 from __future__ import annotations
 
@@ -15,56 +24,53 @@ from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
-
 from google.adk.events import Event, EventActions
 
 from cardnews.scraping.proxy_client import ProxyRotationClient
-from cardnews.scraping.parsers import get_parsed_google_search_page, get_parsed_text_page, get_parsed_google_img_search_page
+from cardnews.scraping.parsers import (
+    get_parsed_google_search_page,
+    get_parsed_text_page,
+    get_parsed_google_img_search_page,
+)
 from cardnews.scraping.utils import safe_parse_urls, clean_urls
+
+from cardnews.workers.instructions import (
+    FILTER_INSTRUCTION,
+    TEXT_MAKER_INSTRUCTION,
+    IMG_KEYWORD_INSTRUCTION,
+)
 
 # ---------------------------------------------------------------------------
 # 공통 async 툴
 # ---------------------------------------------------------------------------
-
-async def search_google(client, keyword: str, max_results: int = 15, date_range:str=None) -> List[Dict[str, str]]:
-    """Performs a Google search and returns parsed top-N results.
-
-    Args:
-        keyword: Search query string.
-        max_results: Google num parameter.
-
-    Returns:
-        list[dict] with keys ``desc`` and ``url``.
-    """
-    
+async def search_google(client, keyword: str, max_results: int = 10, date_range: str | None = None) -> List[Dict[str, str]]:
+    """Google 검색 결과 파싱."""
     url = f"https://www.google.com/search?q={keyword}&num={max_results}"
     if date_range:
-        url+=f"&tbs=qdr:{date_range}"
+        url += f"&tbs=qdr:{date_range}"
     html = await client.fetch(url)
     return get_parsed_google_search_page(html)
 
 
 async def fetch_page_text(client, url: str) -> str:
-    """Scrapes a single page and returns visible main text."""
     html = await client.fetch(url)
     return get_parsed_text_page(html)
 
-IMG_SEARCH_BASE = (
+
+_IMG_SEARCH_BASE = (
     "https://www.google.com/search"
     "?tbm=isch&tbs=itp:photo,isz:lt,islt:vga&ijn=0&q={q}"
 )
+
 
 async def search_google_images(
     client: ProxyRotationClient,
     keyword: str,
     top_k: int = 20,
 ) -> List[Dict[str, str]]:
-    """
-    img_keyword 로 Google 이미지 검색 → 상위 top_k 결과만 반환
-    """
-    url = IMG_SEARCH_BASE.format(q=urllib.parse.quote(keyword))
+    url = _IMG_SEARCH_BASE.format(q=urllib.parse.quote(keyword))
     html = await client.fetch(url)
-    items = get_parsed_google_img_search_page(html)   # ✅ 이미 만들어둔 파서
+    items = get_parsed_google_img_search_page(html)
     return items[:top_k]
 
 
@@ -73,38 +79,20 @@ async def parallel_fetch_texts(
     urls: List[str],
     max_concurrency: int = 5,
 ) -> str:
-    """
-    크롤링할 URL 목록을 병렬(동시 max_concurrency개)로 요청해
-    각 페이지에서 추출한 텍스트를 하나의 문자열로 이어서 반환합니다.
-
-    Args
-    ----
-    client           : 이미 생성·공유된 ProxyRotationClient 인스턴스
-    urls             : 크롤링할 URL 목록
-    max_concurrency  : 동시에 실행할 fetch 작업 수(기본 5)
-
-    Returns
-    -------
-    str : `"---1번째 페이지---\\n...\\n--------------------------------\\n"`  
-          형태로 이어붙인 결과
-    """
     sem = asyncio.Semaphore(max_concurrency)
 
     async def _worker(idx: int, url: str) -> str:
-        async with sem:                       # 동시 요청 개수 제한
+        async with sem:
             try:
                 text = await fetch_page_text(client, url)
-                text = text[:20_000]          # 너무 길면 컷
+                text = text[:20_000]
                 return (
-                    f"---{idx + 1}번째 페이지---\n"
-                    f"{text}\n"
-                    f"--------------------------------\n"
+                    f"---{idx+1}번째 페이지---\n{text}\n--------------------------------\n"
                 )
             except Exception as e:
-                print(f"⚠️ [{idx + 1}] {url} 실패: {e}")
+                print(f"⚠️  [{idx + 1}] {url} 실패: {e}")
                 return ""
 
-    # 코루틴을 한꺼번에 스케줄링
     tasks = [_worker(i, u) for i, u in enumerate(urls)]
     chunks = await asyncio.gather(*tasks)
     return "".join(chunks)
@@ -112,85 +100,31 @@ async def parallel_fetch_texts(
 # ---------------------------------------------------------------------------
 # Agent 정의
 # ---------------------------------------------------------------------------
-
 MODEL_LOW = "openai/gpt-4.1-nano"
 MODEL_MID = "openai/gpt-4.1-mini"
 MODEL_HIGH = "openai/o4-mini"
 
-CLASSIFY_AGENT = Agent(
-    name="classify_agent",
-    model=LiteLlm(model=MODEL_LOW),
-    instruction=(
-        "사용자가 요청한 카드뉴스 주제 '{keyword}' 를 보고 카테고리를 정확히 장소,꿀팁,뉴스 중에 하나로 출력하세요. 이외의 단어는 출력하지 마세요.\n"
-        "- 음식·맛집·카페·데이트코스·전시회·가게 ⇒ 장소\n"
-        "- 최신 뉴스 사건 ⇒ 뉴스'\n"
-        "- 사용법·팁·비법·노하우·정보 (장소와 뉴스가 아닌 대부분의 것) ⇒ 꿀팁'\n")
-)
-
 FILTER_AGENT = Agent(
     name="filter_agent",
     model=LiteLlm(model=MODEL_HIGH),
-    instruction=(
-        "{search_results} 이 text는 list[dict] 형태이며, dict의 key는 desc,url로 이루어져 있어. desc를 보고 광고·낚시 제외하고 검색어 사용자가 요청한 카드뉴스 주제 '{keyword}'와 관련성 높은 정보를 선택해 그에 해당하는 URL 최대 5개를 골라, url을 요소로 갖는 list로 출력하세요. 예를들면 ['www.asdds', 'www.asdasd'] 형태입니다. 꼭 그냥 하나의 list로만 출력하고, 다른 텍스트를 출력하지 마세요."),
+    instruction=FILTER_INSTRUCTION,
 )
 
-RESTAURANT_MAKER = Agent(
-    name="restaurant_maker",
+TEXT_MAKER_AGENT = Agent(
+    name="text_maker_agent",
     model=LiteLlm(model=MODEL_HIGH),
-    instruction=(
-        "아래 검색 결과를 바탕으로 '{keyword}'에 대한 카드뉴스 list(dict) 형식의 JSON(2~6장)만 출력하세요.\n"
-        "- 첫 dict: title, img_keyword 를 key로 가지는 dict\n"
-        "- 이후 dict: sub_title, body, img_keyword를 key로 가지는 dict\n"
-        "title 은보통의 SNS 포스팅 제목처럼, 쉽고 직설적으로 흥미로운 표현을 써서 클릭을 유도하는 제목을 쓰는것이 좋습니다.\n"
-        "sub_title에는 해당 장소 또는 상호 이름을 기본으로 적는데, 만약 일반적인 상호라면, 잠실~~떡볶이 처럼 지명을 상호 앞에 함께 적어 특정할 수 있도록 써야합니다. 만약  기본으로 적은 장소 또는 상호 이름 이외로 추가로 소제목으로 붙히면 좋은 정보가 있으면, 추가해도 됩니다."
-        "body에는 해당 장소 또는 가게에 대한 간략한 장점,특징, 주요정보(주요메뉴,기간/시간 등)를 씁니다. 만약 검색 결과상 주요정보(주요메뉴,기간/시간 등)가 없으면 쓰지 않아도 되지만, 있다면 쓰는것이 좋습니다. 최대 100자 이내 (2~4문장)로 써야합니다. 꼭 최대 글자수를 채울 필요는 없지만, 독자들이 흥미로워할 내용이 많다면 길게, 아니라면 짧게 쓰고 넘어가는게 좋습니다."
-        "img_keyword는 sub_title과 똑같이, 해당 장소/가게 이름으로 쓰면돼. 다만  title에 들어가는 img_keyword로는, 주제와 관련있으면서 후킹하도록 어떤 사진이 들어가면 좋을지 생각한뒤, 그 사진을 검색할 수 있는 검색어를 적어줘. 내용과 꼭 100% 일치하지 않더라도, 관련있으면서 구글 이미지 검색시 배경으로 쓸만한 사진이 나올만한 검색어를 써야합니다.그리고 검색된 이미지는 카드뉴스의 배경으로 쓰이기 때문에 사진에 텍스트가 없을 만한 이미지 키워드를 선정하는게 좋아.\n"
-        "꼭 필요한 경우가 아니면 한자는 쓰지마. 기본적으로는 한글로 쓰는게 좋아.\n"
-        "다른 텍스트를 출력하지 말고 꼭 Json 형식의 출력만 하세요! 백틱json도 쓰지말고 그냥 대괄호,중괄호'[{' 로 바로 시작하도록. 그리고 key,value는 작은따옴표가 아닌 큰따옴표로 감싸야해 \n"
-        "---참조할 검색 결과---\n"
-        "{page_texts}")
+    instruction=TEXT_MAKER_INSTRUCTION,
 )
 
-TIPS_MAKER = Agent(
-    name="tips_maker",
+IMG_KEYWORD_AGENT = Agent(
+    name="img_keyword_agent",
     model=LiteLlm(model=MODEL_HIGH),
-    instruction=(
-        "아래 검색 결과를 바탕으로 '{keyword}'에 대한 카드뉴스 list(dict) 형식의 JSON(2~6장)만 출력하세요.\n"
-        "- 첫 dict: title, img_keyword 를 key로 가지는 dict\n"
-        "- 이후 dict: sub_title, body, img_keyword를 key로 가지는 dict\n"
-        "카드뉴스의 내용으로는 아래 참조할 검색 결과를 바탕으로 뻔한 사실이 아닌, 구체적이고 흥미로운 내용을 쓰는것이 중요합니다.\n"
-        "title 은 보통의 SNS 포스팅 제목처럼, 쉽고 직설적으로 흥미로운 표현을 써서 클릭을 유도하는 제목을 쓰는것이 좋습니다.\n"
-        "sub_title은 최대 40자 이내, body는 최대 100자 이내 (2~4문장)로 써야합니다. 꼭 최대 글자수를 채울 필요는 없지만, 독자들이 흥미로워할 내용이 많다면 길게, 아니라면 짧게 쓰고 넘어가는게 좋습니다.\n"
-        "카드뉴스는 두괄식이 좋습니다. 그래서 sub_title에는 title을 보고 사람들이 가장 궁금해할 만한것을 직접적으로 적어주는것이 좋습니다. 예를들어 title이 애니추천5선이면 애니 이름을 sub_title에 적는식입니다."
-        "img_keyword는 해당 페이지에 어울리는 이미지를 검색하기 위한 구글 검색어를 써야합니다. 특히 title쪽 img_keyword는 후킹한 사진을, 그 이후 img_keyword는 해당 페이지 내용과 관련 있는 img_keyword를 쓰는것이 좋습니다. 먼저 어떤 사진이 들어가야 사람들에게 후킹한 사진이 나올지 / 또 카드뉴스의 배경사진으로 쓰기 좋을지(텍스트가 없을수록 좋음) 생각한 뒤, 해당 사진을 얻기위한 일반적인 검색어가 무엇인지 생각해서 결정해야합니다. 검색어는 추상적인 검색어가 아닌, 인물이나 캐릭터의 이름 혹은 형태가 있는 무언가 혹은 이미지가 바로 연상되는 키워드를 지칭하는 명사가 좋아. 예를들어, 해당 페이지의 주제가 알뜰폰 이면, 알뜰한것을 이미지화해서 저금통을 검색어로 쓰던가, 아니면 폰을 이미지화해서 핸드폰을 검색어로 쓰는 식이야. 구글 검색을 하는 img_keyword에 카드뉴스에서 의도한 것 보다 더 유명한 다른 뜻이 있는 경우는 의도대로 검색이 안될 확률이 높기 때문에 피하는게 좋습니다. \n"
-        "title쪽 img_keyword를 떠올릴때에는 '{keyword}'가 사람이나 사람이 쓰는 패션/소품과 관련된 경우에는 해당 특징에 맞는, 관련된 행위를 하는 연예인 사진을 쓰는것이 좋습니다.[이쁜여자: 장원영|유나|카리나|설윤, 멋있는남자:차은우|방탄소년단 뷔, 아저씨:추성훈, 아줌마:이수지] (예를들어 핸드폰 메세지 관련된 타이틀이면 '장원영 핸드폰' 과같은 img_keyword를 title에서 쓰는게 좋겠지요) 하지만 특정 인물에 대한 것이라면 해당 인물 이름 혹은 이름을 포함한 적절한 단어들을 img_keyword로 쓰는것이 합리적입니다. (2) 굳이 사람과 관계없는 주제면, 해당 페이지와 관련있는 최대한 후킹한 사진이 좋습니다. (3)그에 앞서 주제상 특정 인물 혹은 인물들과만 관계있어서 다른 연예인 사진을 쓰는게 이상하면, 해당 특정 인물 사진을 쓰는것이 좋습니다. \n"
-        "꼭 필요한 경우가 아니면 한자는 쓰지마. 기본적으로는 한글로 쓰는게 좋아.\n"
-        "다른 텍스트를 출력하지 말고 꼭 Json 형식의 출력만 하세요! 백틱json도 쓰지말고 그냥 대괄호,중괄호'[{' 로 바로 시작하도록. 그리고 key,value는 작은따옴표가 아닌 큰따옴표로 감싸야해 \n"
-        "---참조할 검색 결과---\n"
-        "{page_texts}")
-)
-
-
-NEWS_MAKER = Agent(
-    name="news_maker",
-    model=LiteLlm(model=MODEL_HIGH),
-    instruction=(
-        "아래 검색 결과를 바탕으로 '{keyword}'에 대한 뉴스에 대한 카드뉴스 list(dict) 형식의 JSON으로 2장(첫 타이틀 페이지와, 둘째 페이지: 뉴스내용에 대한 요약 페이지)을 출력하세요.\n"
-        "- 첫 dict: title, img_keyword 를 key로 가지는 dict\n"
-        "- 이후 dict: body, img_keyword를 key로 가지는 dict\n"
-        "뉴스 기사에 대한 팩트(아래 검색 내용)를 기반으로, 사용자가 요청한 키워드에 대한 카드뉴스를 출력하세요. 꼭 아래 검색 내용에 있는 내용으로 카드뉴스를 출력해야 합니다.\n"
-        "첫 페이지와 두번째 페이지 img_keyword 모두, 뉴스 title과 같은 내용을 담고, 너무 복잡하지만 않으면 됩니다. 검색 시 해당 뉴스가 특정될 키워드 중에서 가장 단순한게 좋습니다. 특히 내용중에 구체정 상품명이나 인물이나 형태가 확실한게 있다면, 그 키워드를 중심으로 삼는것이 좋습니다. \n"
-        "body는 2~4문장, 최대 150자 이내로 써야합니다. 꼭 최대 글자수를 채울 필요는 없지만, 독자들이 흥미로워할 내용이 많다면 길게, 아니라면 짧게 쓰고 넘어가는게 좋습니다."
-        "꼭 필요한 경우가 아니면 한자는 쓰지마. 기본적으로는 한글로 쓰는게 좋아.\n"
-        "다른 텍스트를 출력하지 말고 꼭 Json 형식의 출력만 하세요! 백틱json도 쓰지말고 그냥 대괄호,중괄호'[{' 로 바로 시작하도록. 그리고 key,value는 작은따옴표가 아닌 큰따옴표로 감싸야해 \n"
-        "---참조할 검색 결과---"
-        "{page_texts}")
+    instruction=IMG_KEYWORD_INSTRUCTION,
 )
 
 # ---------------------------------------------------------------------------
-# Runner 실행 후 최종 응답 헬퍼
+# Runner helper
 # ---------------------------------------------------------------------------
-
 async def _run_agent(runner: Runner, user_msg: str) -> str:
     content = types.Content(role="user", parts=[types.Part(text=user_msg)])
     async for event in runner.run_async(user_id="user", session_id="sess", new_message=content):
@@ -201,195 +135,148 @@ async def _run_agent(runner: Runner, user_msg: str) -> str:
 # ---------------------------------------------------------------------------
 # 메인 워크플로
 # ---------------------------------------------------------------------------
-
-async def generate_cardnews(client, keyword: str, date_range: str = None) -> str:
-
+async def generate_cardnews(client, keyword: str, date_range: str | None = None) -> str:
     if date_range == "None":
         date_range = None
+
+    # 세션 초기화
     service = InMemorySessionService()
     service.create_session(app_name="app", user_id="user", session_id="sess")
     session = service.get_session(app_name="app", user_id="user", session_id="sess")
 
-
+    # keyword 주입
     service.append_event(
         session,
-        Event(invocation_id="set_pages",
+        Event(
+            invocation_id="set_state",
             author="system",
-            actions=EventActions(state_delta={"keyword": keyword}))
+            actions=EventActions(state_delta={"keyword": keyword}),
+        ),
     )
 
-    # 1️⃣ 분류
-    runner_cls = Runner(agent=CLASSIFY_AGENT, app_name="app", session_service=service)
-    category = (await _run_agent(runner_cls, keyword)).strip()
-    service.append_event(
-        session,
-        Event(invocation_id="set_pages",
-            author="system",
-            actions=EventActions(state_delta={"category": category}))
-    )
-    print("====== search keyword ======")
-    print(keyword)
-
-    print("====== category ======")
-    print(category)
-
-    # 2️⃣ 검색 + 필터
-    search_results = await search_google(client, keyword, date_range)
+    # 1️⃣ Google 검색
+    try:
+        search_results = await search_google(client, keyword, 15, date_range)
+    except:
+        return json.dumps([{}])
     print("====== search_results ======")
-    print("search_results count:", len(search_results))
-    print(search_results)
+    print("count:", len(search_results))
 
     service.append_event(
         session,
-        Event(invocation_id="set_pages",
+        Event(
+            invocation_id="set_state",
             author="system",
-            actions=EventActions(state_delta={"search_results": search_results}))
+            actions=EventActions(state_delta={"search_results": search_results}),
+        ),
     )
 
+    # 2️⃣ URL 필터링
     runner_flt = Runner(agent=FILTER_AGENT, app_name="app", session_service=service)
-    selected_json = await _run_agent(runner_flt, "filter")
+    selected_json: str = await _run_agent(runner_flt, "filter")
+    selected_url_list = clean_urls(safe_parse_urls(selected_json))
 
-    print("=====크롤링 대상 url=====")
-    #print(selected_json)
-    selected_url_list= safe_parse_urls(selected_json)
-    selected_url_list = clean_urls(selected_url_list)
+    print("===== 선택된 URL =====")
     print(selected_url_list)
 
-    # 3️⃣ 페이지 텍스트 수집
-    """
-    texts = ""
-    for i, url in enumerate(selected_url_list):
-        print("cawling start:", url)
-        try:
-            page_text= await fetch_page_text(client, url)
-            print(url)
-            print(page_text)
-            texts+=f"---{i+1}번째 페이지---\n"
-            texts+=page_text[:10000]
-            texts+="--------------------------------\n"
-        except Exception:
-            continue
-        print("cawling end", url)
-    """
-    page_texts = await parallel_fetch_texts(client, selected_url_list, max_concurrency=5)
+    if len(selected_url_list)==0:
+        return json.dumps([{}])
 
-
+    # 3️⃣ 본문 크롤링
+    page_texts = await parallel_fetch_texts(client, selected_url_list, 5)
     service.append_event(
         session,
-        Event(invocation_id="set_pages",
+        Event(
+            invocation_id="set_state",
             author="system",
-            actions=EventActions(state_delta={"page_texts": page_texts}))
+            actions=EventActions(state_delta={"page_texts": page_texts}),
+        ),
     )
-    #print("====== crawled text context=======")
-    #print(page_texts)
 
+    # 4️⃣ 카드뉴스 초안 생성
+    runner_txt = Runner(agent=TEXT_MAKER_AGENT, app_name="app", session_service=service)
+    cards_json_str: str = await _run_agent(runner_txt, "generate")
 
+    # cards_json 세션 저장 (img‑keyword 단계에서 사용)
+    service.append_event(
+        session,
+        Event(
+            invocation_id="set_state",
+            author="system",
+            actions=EventActions(state_delta={"cards_json": cards_json_str}),
+        ),
+    )
 
-    # 4️⃣ 카드뉴스 생성
-    if category == "장소":
-        maker_agent = RESTAURANT_MAKER
-        category_for_json = "place"
-    elif category == "꿀팁":
-        maker_agent = TIPS_MAKER
-        category_for_json = "text"
-    elif category == "뉴스":
-        maker_agent = NEWS_MAKER
-        category_for_json = "news"
-    else: 
-        raise ValueError("Invalid category")
+    # 5️⃣ img_keyword 보강
+    runner_imgkw = Runner(agent=IMG_KEYWORD_AGENT, app_name="app", session_service=service)
+    cards_with_kw_str: str = await _run_agent(runner_imgkw, "add_img_kw")
 
-    runner_mkr = Runner(agent=maker_agent, app_name="app", session_service=service)
-
-    # 5 이미지 url_list 까지 카드뉴스에 병합
-    raw_json = await _run_agent(runner_mkr, "generate")
-
-    # -------- img_keyword → 이미지 검색 결과로 치환 --------
     try:
-        pages = json.loads(raw_json)
-    except:
-        print("JSON PARSE 실패!!!!!!!!!!!!!!!!!")
+        cards_data = json.loads(cards_with_kw_str)
+        pages: List[Dict] = cards_data["cards"] if isinstance(cards_data, dict) else cards_data
+    except Exception as e:
+        raise ValueError(f"IMG_KEYWORD_AGENT returned invalid JSON: {e}")
 
-    async def _enrich_page(page):
+    # 6️⃣ 이미지 URL 크롤링 병합
+    async def _enrich_page(page: Dict) -> Dict:
         if "img_keyword" not in page:
             return page
         kw = page["img_keyword"]
-        img_res = await search_google_images(client, kw, top_k=20)
-        page["img_urls"]  = [r["img_url"] for r in img_res]
-        page["ref_urls"]  = [r["ref_urls"]     for r in img_res]
-        page["img_desc"]  = [r["img_desc"]    for r in img_res]
+        img_res = await search_google_images(client, kw, 20)
+        page["img_urls"] = [r["img_url"] for r in img_res]
+        page["ref_urls"] = [r["ref_urls"] for r in img_res]
+        page["img_desc"] = [r["img_desc"] for r in img_res]
         return page
 
-    # 병렬 실행 (동시 5개 제한)
-    sem   = asyncio.Semaphore(5)
-    async def _wrapper(p):
+    sem = asyncio.Semaphore(5)
+
+    async def _wrap(p):
         async with sem:
             return await _enrich_page(p)
+    try:
+        pages = await asyncio.gather(*[_wrap(p) for p in pages])
+    except:
+        return json.dumps([{}])
 
-    pages = await asyncio.gather(*[_wrapper(p) for p in pages])
+    # 7️⃣ category 결정
+    layout = (
+        "with_sub_title" if any("sub_title" in card for card in pages[1:]) else "no_sub_title"
+    )
 
-    #최종적으로 카드뉴스 형식에 맞게 변환
-    res_json={}
-    res_json["category"] = category_for_json
-    res_json["cards"] = pages
-    res_json["desc"] = "default descriptions"
+    res_json = {
+        "category": layout,
+        "cards": pages,
+        "desc": "default descriptions",
+    }
 
-    for i, card in enumerate(res_json['cards']):
-        print(f"[{i+1}] card")
-        if 'title' in card:
-            print("title:", card['title'])
-        if 'sub_title' in card:
-            print("sub_title:", card['sub_title'])
-        if 'body' in card:
-            print("body:", card['body'])
-        if 'img_keyword' in card:
-            print("img_keyword:", card['img_keyword'])
-        #if 'img_urls' in card:
-        #    print(card['img_urls'])
-        #if 'ref_urls' in card:
-        #    print(card['ref_urls'])
-        #if 'img_desc' in card:
-        #    print(card['img_desc'])
+    # 디버그 출력
+    for i, card in enumerate(pages, 1):
+        print(f"[{i}] card")
+        for k in ("title", "sub_title", "body", "img_keyword"):
+            if k in card:
+                print(f"{k}: {card[k]}")
         print("--------------------------------")
 
-
-    return json.dumps(res_json, ensure_ascii=False, indent=None)
-
+    return json.dumps(res_json, ensure_ascii=False)
 
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
-
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python agent.py <keyword>")
+        print("Usage: python agent_runner.py <keyword> [date_range]")
         sys.exit(1)
 
     kw = sys.argv[1]
-    client = ProxyRotationClient()
-    output = asyncio.run(generate_cardnews(client, kw, None)) # d, w, m, m3, y, None
-    #output을 .txt파일로 저장
-    with open("json_output.txt", "w") as f:
-        f.write(output)
+    date_range_arg = sys.argv[2] if len(sys.argv) > 2 else None  # d, w, m, y, None
 
-    # output을 json 형식으로 파싱
-    output_json = json.loads(output)
-    # print
-    print(f"category: {output_json['category']}")
-    print(f"desc: {output_json['desc']}")
-    for i, card in enumerate(output_json['cards']):
-        print(f"[{i+1}] card")
-        if 'title' in card:
-            print("title:", card['title'])
-        if 'sub_title' in card:
-            print("sub_title:", card['sub_title'])
-        if 'body' in card:
-            print("body:", card['body'])
-        if 'img_keyword' in card:
-            print("img_keyword:", card['img_keyword'])
-        #if 'img_urls' in card:
-        #    print(card['img_urls'])
-        #if 'ref_urls' in card:
-        #    print(card['ref_urls'])
-        #if 'img_desc' in card:
-        #    print(card['img_desc'])
-        print("--------------------------------")
+    proxy_client = ProxyRotationClient()
+    output_json_str = asyncio.run(generate_cardnews(proxy_client, kw, date_range_arg))
+
+    # Save to file
+    with open("json_output.txt", "w", encoding="utf-8") as fp:
+        fp.write(output_json_str)
+
+    # Pretty‑print to console
+    output_json = json.loads(output_json_str)
+    import pdb; pdb.set_trace()
